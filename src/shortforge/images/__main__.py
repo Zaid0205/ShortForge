@@ -1,0 +1,93 @@
+"""Self-check: `python -m shortforge.images` renders the self-check script's scenes.
+
+Reads `output/_selfcheck/script.json` (written by `python -m shortforge.script`) and saves
+one frame-sized PNG per scene plus `contact_sheet.png`, a grid of all scenes for review.
+"""
+
+from __future__ import annotations
+
+import time
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont
+from pydantic import ValidationError
+
+from shortforge.config import ConfigError, get_settings
+from shortforge.fsutil import atomic_path
+from shortforge.images import create_image_generator
+from shortforge.log import console, step
+from shortforge.script import load_script
+
+THUMB_WIDTH, THUMB_HEIGHT = 216, 384
+LABEL_HEIGHT = 36
+GAP = 8
+
+
+def contact_sheet(rows: list[tuple[str, list[Path]]]) -> Image.Image:
+    """Lay out labelled rows of frame thumbnails into one review image."""
+    columns = max(len(paths) for _, paths in rows)
+    width = GAP + columns * (THUMB_WIDTH + GAP)
+    height = GAP + len(rows) * (LABEL_HEIGHT + THUMB_HEIGHT + GAP)
+    sheet = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(sheet)
+    font = ImageFont.load_default(size=20)
+    y = GAP
+    for label, paths in rows:
+        draw.text((GAP, y + 6), label, fill="black", font=font)
+        y += LABEL_HEIGHT
+        for index, path in enumerate(paths):
+            with Image.open(path) as frame:
+                thumb = frame.convert("RGB").resize((THUMB_WIDTH, THUMB_HEIGHT))
+            sheet.paste(thumb, (GAP + index * (THUMB_WIDTH + GAP), y))
+        y += THUMB_HEIGHT + GAP
+    return sheet
+
+
+def render_scenes(prompts: list[str], folder: Path) -> list[Path]:
+    """Render every prompt with the configured provider, returning the PNG paths."""
+    generator = create_image_generator()
+    paths = []
+    for index, prompt in enumerate(prompts, start=1):
+        out = folder / f"scene_{index:02d}.png"
+        started = time.perf_counter()
+        with atomic_path(out) as tmp:
+            generator.generate(prompt, tmp)
+        console.print(f"  scene {index}: {time.perf_counter() - started:.1f}s -> {out}")
+        paths.append(out)
+    return paths
+
+
+def main() -> None:
+    """Render the scenes and write the review sheet."""
+    settings = get_settings()
+    folder = settings.output_dir / "_selfcheck"
+    script_path = folder / "script.json"
+    regenerate = 'Run python -m shortforge.script "your topic" first.'
+    if not script_path.exists():
+        console.print(f"[bold red]Error:[/] {script_path} not found. {regenerate}")
+        raise SystemExit(1)
+    try:
+        prompts = [scene.image_prompt for scene in load_script(script_path).scenes]
+    except ValidationError as exc:
+        console.print(
+            f"[bold red]Error:[/] {script_path} no longer passes validation "
+            f"({exc.error_count()} problem(s)). {regenerate}"
+        )
+        raise SystemExit(1) from exc
+
+    label = f"{settings.image_provider.value}, {settings.cloudflare_steps} steps"
+    try:
+        with step(f"{label} ({len(prompts)} images)"):
+            paths = render_scenes(prompts, folder)
+    except (ConfigError, RuntimeError, ValueError) as exc:
+        console.print(f"[bold red]Error:[/] {exc}")
+        raise SystemExit(1) from exc
+
+    sheet_path = folder / "contact_sheet.png"
+    with atomic_path(sheet_path) as tmp:
+        contact_sheet([(label, paths)]).save(tmp)
+    console.print(f"[green]Saved[/] {sheet_path}")
+
+
+if __name__ == "__main__":
+    main()

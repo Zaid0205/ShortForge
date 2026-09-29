@@ -13,7 +13,6 @@ from shortforge.images.base import ImageGenerator, fit_to_frame
 
 PROVIDERS: dict[ImageProviderName, str] = {
     ImageProviderName.CLOUDFLARE: "shortforge.images.cloudflare:CloudflareImages",
-    ImageProviderName.REPLICATE: "shortforge.images.replicate:ReplicateImages",
 }
 
 

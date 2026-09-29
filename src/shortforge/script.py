@@ -95,10 +95,13 @@ Rules:
   as words where a voice would ("fifty percent", "C plus plus").
 - image_prompt describes ONE concrete scene or visual metaphor for an image model: a physical
   subject in a setting, with lighting and mood (for example "a lone lighthouse beam cutting
-  through dense fog at night"). Never ask for diagrams, charts, graphs, grids of numbers,
-  icons, arrows, screens, user interfaces, split screens, timelines, text, logos or real
-  people; image models render those as garbled fake text. Do not describe an art style; a
-  shared style is added automatically."""
+  through dense fog at night"). Never ask for diagrams, charts, graphs, icons, arrows,
+  screens, user interfaces, split screens, timelines, logos or real people. Nothing may be
+  written on anything: no words, letters, numbers, labels, signs or pages with writing, and
+  do not use those words at all. Image models render writing as garbled fake glyphs. For
+  topics about language or text, show the idea through objects instead (beads on a string,
+  puzzle pieces, threads of light). Do not describe an art style; a shared style is added
+  automatically."""
 
 
 def build_user_prompt(topic: str) -> str:

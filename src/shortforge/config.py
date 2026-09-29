@@ -10,6 +10,7 @@ Run `python -m shortforge.config` to print the resolved settings with secrets ma
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -35,7 +36,6 @@ class ImageProviderName(StrEnum):
     """Available image generation backends."""
 
     CLOUDFLARE = "cloudflare"
-    REPLICATE = "replicate"
 
 
 class Settings(BaseSettings):
@@ -63,11 +63,10 @@ class Settings(BaseSettings):
     cloudflare_account_id: str | None = None
     cloudflare_api_token: SecretStr | None = None
     cloudflare_image_model: str = "@cf/black-forest-labs/flux-1-schnell"
-    replicate_api_token: SecretStr | None = None
-    replicate_image_model: str = "black-forest-labs/flux-schnell"
+    cloudflare_steps: int = Field(default=4, ge=1, le=8)
     image_style: str = (
         "clean modern tech illustration, soft cinematic lighting, deep blue and cyan palette, "
-        "high detail, vertical composition, subject centered, no text, no letters, no watermark"
+        "high detail, vertical composition, subject centered"
     )
 
     video_width: int = Field(default=720, gt=0)
@@ -90,6 +89,20 @@ class Settings(BaseSettings):
     def _normalize_choice(cls, value: object) -> object:
         """Accept provider names regardless of case or stray whitespace."""
         return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator("cloudflare_account_id")
+    @classmethod
+    def _check_account_id(cls, value: str | None) -> str | None:
+        """Reject anything that is not a 32-character Cloudflare account ID, such as a URL."""
+        if value is None or re.fullmatch(r"[0-9a-f]{32}", value):
+            return value
+        hint = ""
+        if match := re.search(r"[0-9a-f]{32}", value):
+            hint = f" It contains {match.group(0)!r}, which looks like the ID itself."
+        raise ValueError(
+            "must be the 32-character account ID (hex), not a URL or name. Find it in the "
+            f"Cloudflare dashboard URL after dash.cloudflare.com/.{hint}"
+        )
 
     def require_secret(self, field: str) -> str:
         """Return the plain value of a credential field, or raise a `ConfigError`.
@@ -152,8 +165,6 @@ def _self_check() -> None:
     required = ["groq_api_key"]
     if settings.image_provider is ImageProviderName.CLOUDFLARE:
         required += ["cloudflare_account_id", "cloudflare_api_token"]
-    else:
-        required += ["replicate_api_token"]
 
     missing = [name.upper() for name in required if getattr(settings, name) is None]
     if missing:

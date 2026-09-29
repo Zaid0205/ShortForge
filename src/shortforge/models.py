@@ -30,7 +30,7 @@ from pydantic import (
 MIN_SCENES = 5
 MAX_SCENES = 7
 MIN_WORDS = 80
-MAX_WORDS = 125
+MAX_WORDS = 115
 MAX_TAGS_CHARS = 500
 WORDS_PER_SECOND = 2.5
 
@@ -75,6 +75,13 @@ def clean_text(value: object) -> object:
 
 CleanStr = Annotated[str, BeforeValidator(clean_text)]
 
+_TEXT_IN_IMAGE_RE = re.compile(
+    r"\b(words?|letters?|text|texts|typed|typing|writing|written|labell?ed|labels?|captions?|"
+    r"signs?|signage|numbers?|digits?|numerals?|alphabet|fonts?|headlines?|subwords?|"
+    r"handwriting|scrolling|lettering|inscribed|spelled|spelling)\b",
+    re.IGNORECASE,
+)
+
 
 def count_words(text: str) -> int:
     """Count spoken words, treating tokens like "GPT-4" or "don't" as one word."""
@@ -88,6 +95,18 @@ class Scene(BaseModel):
 
     narration: CleanStr = Field(min_length=10, max_length=400)
     image_prompt: CleanStr = Field(min_length=10, max_length=600)
+
+    @field_validator("image_prompt")
+    @classmethod
+    def _no_visible_text(cls, prompt: str) -> str:
+        """Reject prompts that ask for writing, which image models render as garbled glyphs."""
+        found = sorted({m.group(0).lower() for m in _TEXT_IN_IMAGE_RE.finditer(prompt)})
+        if found:
+            raise ValueError(
+                f"asks for visible text ({', '.join(found)}); describe the idea with objects, "
+                "light or motion instead, with nothing written on anything"
+            )
+        return prompt
 
 
 class Script(BaseModel):

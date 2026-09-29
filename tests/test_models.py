@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from shortforge.models import MAX_WORDS, MIN_WORDS, Script, clean_text, count_words
+from shortforge.models import MAX_WORDS, MIN_WORDS, Scene, Script, clean_text, count_words
 
 LINE = "Vector databases store meaning as numbers so AI can find related ideas fast."
 
@@ -105,3 +105,32 @@ def test_all_text_fields_are_cleaned() -> None:
     assert script.scenes[0].image_prompt == "a lighthouse's beam in fog"
     dump = script.model_dump_json()
     assert all(ch not in dump for ch in "\u2014\u2011\u2019")
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "a person at a desk as glowing words float up from a keyboard",
+        "wooden blocks, each painted with a subword fragment",
+        "colorful ribbons, each ribbon labeled with a number",
+        "a sunrise over a horizon made of scrolling text lines",
+        "a neon sign above a doorway",
+    ],
+)
+def test_image_prompt_asking_for_text_is_rejected(prompt: str) -> None:
+    with pytest.raises(ValidationError, match="asks for visible text"):
+        Scene(narration="Tokens are pieces of words.", image_prompt=prompt)
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "glowing beads on a string drifting through a dark room",
+        "threads of light connecting floating glass cubes, context everywhere",
+        "a lighthouse beam cutting through dense fog at night",
+    ],
+)
+def test_image_prompt_without_text_is_accepted(prompt: str) -> None:
+    assert (
+        Scene(narration="Tokens are pieces of words.", image_prompt=prompt).image_prompt == prompt
+    )

@@ -8,6 +8,7 @@ the 30 to 50 second target.
 
 from __future__ import annotations
 
+from pydantic import ValidationError
 from rich.table import Table
 
 from shortforge.config import ConfigError, get_settings
@@ -30,7 +31,14 @@ def main() -> None:
     folder = settings.output_dir / "_selfcheck"
     script_path = folder / "script.json"
     if script_path.exists():
-        narrations = [scene.narration for scene in load_script(script_path).scenes]
+        try:
+            narrations = [scene.narration for scene in load_script(script_path).scenes]
+        except ValidationError as exc:
+            console.print(
+                f"[bold red]Error:[/] {script_path} no longer passes validation. "
+                'Run python -m shortforge.script "your topic" first.'
+            )
+            raise SystemExit(1) from exc
         console.print(f"Using {script_path} ({len(narrations)} scenes)")
     else:
         narrations = SAMPLE_NARRATION

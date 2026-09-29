@@ -7,7 +7,7 @@ Full spec: see `docs/BRIEF.md`.
 ## Stack (fixed decisions)
 - Script: Groq (GPT-OSS 120B, replaced Llama 3.3 70B after Groq retired it in Aug 2026), strict structured outputs, validated with Pydantic
 - TTS: pluggable via `TTS_PROVIDER`. `kokoro` (local, needs espeak-ng). ElevenLabs deferred to future work
-- Images: pluggable via `IMAGE_PROVIDER`. Default `cloudflare` (Workers AI, FLUX.1-schnell, free tier). Optional `replicate`
+- Images: pluggable via `IMAGE_PROVIDER`. `cloudflare` (Workers AI, FLUX.1-schnell, free tier). Replicate deferred to future work
 - Captions: Pillow-rendered PNGs (no MoviePy TextClip / ImageMagick)
 - Video: MoviePy 2.x + ffmpeg, 720x1280, 24fps
 - Upload: YouTube Data API v3, OAuth desktop, uploads as private
@@ -36,7 +36,7 @@ Full spec: see `docs/BRIEF.md`.
 - [x] Phase 1: config, models, requirements, provider interfaces
 - [x] Phase 2: script generation
 - [x] Phase 3: TTS
-- [ ] Phase 4: images
+- [x] Phase 4: images
 - [ ] Phase 5: captions + video
 - [ ] Phase 6: pipeline, caching, CLI
 - [ ] Phase 7: YouTube upload
