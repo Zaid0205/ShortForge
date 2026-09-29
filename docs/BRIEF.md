@@ -17,7 +17,7 @@ Pipeline: topic → script (LLM) → voiceover per scene (TTS) → image per sce
 ## Fixed Technical Decisions (do not change without asking)
 | Step | Tool | Notes |
 |---|---|---|
-| Script | Groq API, Llama 3.3 70B | Structured JSON output: title, description, tags, 5 to 7 scenes, each with `narration` and `image_prompt`. Validate with Pydantic. Retry on invalid JSON. |
+| Script | Groq API, GPT-OSS 120B (`openai/gpt-oss-120b`; Llama 3.3 70B was retired by Groq on 2026-08-16) | Strict structured output (JSON schema): title, description, tags, 5 to 7 scenes, each with `narration` and `image_prompt`. Validate with Pydantic. Retry on invalid JSON. |
 | Voice | Pluggable via `TTS_PROVIDER` | Default `kokoro`: Kokoro-82M, open source, runs locally on CPU, uses espeak-ng. Optional `elevenlabs` for premium voice. Common interface so providers are swappable. Generate audio PER SCENE and record each duration. |
 | Images | Pluggable via `IMAGE_PROVIDER` | Default `cloudflare`: Cloudflare Workers AI, FLUX.1-schnell (free daily tier, needs `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`). Optional `replicate`. Common interface. 9:16 output (crop or pad if the provider returns another size). Consistent visual style suffix appended to every prompt. |
 | Captions | Pillow-rendered PNG overlays | Do NOT use MoviePy TextClip (ImageMagick dependency). Bold, high-contrast, centered lower-third, 3 to 5 words per chunk. |

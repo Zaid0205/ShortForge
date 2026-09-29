@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from shortforge.models import MAX_WORDS, MIN_WORDS, Script, count_words
+from shortforge.models import MAX_WORDS, MIN_WORDS, Script, clean_text, count_words
 
 LINE = "Vector databases store meaning as numbers so AI can find related ideas fast."
 
@@ -68,3 +68,40 @@ def test_title_over_youtube_limit_fails() -> None:
 def test_whitespace_is_stripped() -> None:
     script = Script.model_validate(make_script(title="  Padded title  "))
     assert script.title == "Padded title"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("vectors\u2014numeric fingerprints", "vectors, numeric fingerprints"),
+        ("fast \u2014 and cheap", "fast, and cheap"),
+        ("fast \u2013 and cheap", "fast, and cheap"),
+        ("fast - and cheap", "fast, and cheap"),
+        ("high\u2011dimensional space", "high-dimensional space"),
+        ("5\u20137 scenes", "5-7 scenes"),
+        ("it\u2019s \u201csmart\u201d", 'it\'s "smart"'),
+        ("wait\u2026 what", "wait... what"),
+        ("GPT-4 stays GPT-4", "GPT-4 stays GPT-4"),
+        ("ends with a dash\u2014", "ends with a dash"),
+        ("odd\u00a0 spaces ,here", "odd spaces,here"),
+    ],
+)
+def test_clean_text(raw: str, expected: str) -> None:
+    assert clean_text(raw) == expected
+
+
+def test_all_text_fields_are_cleaned() -> None:
+    payload = make_script(title="Vectors\u2014explained", tags=["AI", "high\u2011dim", "RAG"])
+    payload["scenes"] = [
+        {
+            "narration": "A vector\u2014a list of numbers " + " ".join(["word"] * 12),
+            "image_prompt": "a lighthouse\u2019s beam in fog",
+        }
+    ] * 6
+    script = Script.model_validate(payload)
+    assert script.title == "Vectors, explained"
+    assert script.tags[1] == "high-dim"
+    assert script.scenes[0].narration.startswith("A vector, a list of numbers")
+    assert script.scenes[0].image_prompt == "a lighthouse's beam in fog"
+    dump = script.model_dump_json()
+    assert all(ch not in dump for ch in "\u2014\u2011\u2019")

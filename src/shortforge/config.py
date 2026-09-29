@@ -51,7 +51,8 @@ class Settings(BaseSettings):
     )
 
     groq_api_key: SecretStr | None = None
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"
+    groq_reasoning_effort: Literal["low", "medium", "high"] = "medium"
 
     channel_niche: str = "AI tools and tech concepts, explained in 45 seconds"
 
@@ -86,7 +87,9 @@ class Settings(BaseSettings):
     default_scenes: int = Field(default=6, ge=MIN_SCENES, le=MAX_SCENES)
     max_retries: int = Field(default=4, ge=1, le=10)
 
-    @field_validator("tts_provider", "image_provider", "youtube_privacy", mode="before")
+    @field_validator(
+        "tts_provider", "image_provider", "youtube_privacy", "groq_reasoning_effort", mode="before"
+    )
     @classmethod
     def _normalize_choice(cls, value: object) -> object:
         """Accept provider names regardless of case or stray whitespace."""

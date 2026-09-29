@@ -14,16 +14,66 @@ Run `python -m shortforge.models` for a quick self-check.
 from __future__ import annotations
 
 import re
+import unicodedata
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 MIN_SCENES = 5
 MAX_SCENES = 7
 MIN_WORDS = 80
 MAX_WORDS = 125
 MAX_TAGS_CHARS = 500
+WORDS_PER_SECOND = 2.5
 
 _WORD_RE = re.compile(r"[A-Za-z0-9]+(?:['.-][A-Za-z0-9]+)*")
+
+_SPACED_DASH_RE = re.compile(r"\s*[\u2014\u2015]\s*|\s+[\u2013-]\s+")
+_CHAR_MAP = str.maketrans(
+    {
+        "\u2010": "-",  # hyphen
+        "\u2011": "-",  # non-breaking hyphen (missing from many fonts)
+        "\u2012": "-",  # figure dash
+        "\u2013": "-",  # en dash between numbers, as in 5\u20137
+        "\u2212": "-",  # minus sign
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u00a0": " ",
+        "\u202f": " ",
+        "\u200b": "",
+    }
+)
+
+
+def clean_text(value: object) -> object:
+    """Normalize model output to plain punctuation that fonts and TTS handle reliably.
+
+    Em dashes and spaced dashes become commas (they would otherwise appear in the
+    on-screen captions), typographic hyphens and quotes become ASCII, and odd spaces
+    are collapsed. Non-string values pass through for Pydantic to reject.
+    """
+    if not isinstance(value, str):
+        return value
+    text = unicodedata.normalize("NFKC", value)
+    text = _SPACED_DASH_RE.sub(", ", text)
+    text = text.translate(_CHAR_MAP)
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\s+([,.!?;:])", r"\1", text)
+    text = re.sub(r",(\s*,)+", ",", text)
+    return text.strip(" ,")
+
+
+CleanStr = Annotated[str, BeforeValidator(clean_text)]
 
 
 def count_words(text: str) -> int:
@@ -36,8 +86,8 @@ class Scene(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="ignore")
 
-    narration: str = Field(min_length=10, max_length=400)
-    image_prompt: str = Field(min_length=10, max_length=600)
+    narration: CleanStr = Field(min_length=10, max_length=400)
+    image_prompt: CleanStr = Field(min_length=10, max_length=600)
 
 
 class Script(BaseModel):
@@ -45,9 +95,9 @@ class Script(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="ignore")
 
-    title: str = Field(min_length=5, max_length=100)
-    description: str = Field(min_length=20, max_length=5000)
-    tags: list[str] = Field(min_length=3, max_length=15)
+    title: CleanStr = Field(min_length=5, max_length=100)
+    description: CleanStr = Field(min_length=20, max_length=5000)
+    tags: list[CleanStr] = Field(min_length=3, max_length=15)
     scenes: list[Scene] = Field(min_length=MIN_SCENES, max_length=MAX_SCENES)
 
     @field_validator("tags")
@@ -85,6 +135,11 @@ class Script(BaseModel):
     def word_count(self) -> int:
         """Total spoken words across all scenes."""
         return sum(count_words(scene.narration) for scene in self.scenes)
+
+    @property
+    def estimated_seconds(self) -> float:
+        """Rough spoken length before TTS, at `WORDS_PER_SECOND`."""
+        return self.word_count / WORDS_PER_SECOND
 
 
 def _self_check() -> None:

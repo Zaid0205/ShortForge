@@ -8,13 +8,6 @@ from pydantic import ValidationError
 from shortforge.config import ConfigError, ImageProviderName, Settings, TTSProviderName
 
 
-@pytest.fixture(autouse=True)
-def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Remove provider variables from the process env so tests are deterministic."""
-    for name in Settings.model_fields:
-        monkeypatch.delenv(name.upper(), raising=False)
-
-
 def test_defaults_are_free_tier_providers() -> None:
     settings = Settings(_env_file=None)
     assert settings.tts_provider is TTSProviderName.KOKORO
