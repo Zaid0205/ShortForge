@@ -32,7 +32,7 @@ Full spec: see `docs/BRIEF.md`.
 
 ## Progress
 - [x] Setup: git, venv (3.11), espeak-ng, ffmpeg
-- [ ] Phase 1: config, models, requirements
+- [x] Phase 1: config, models, requirements, provider interfaces
 - [ ] Phase 2: script generation
 - [ ] Phase 3: TTS
 - [ ] Phase 4: images

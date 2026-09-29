@@ -3,7 +3,7 @@
 ## Context
 You are a senior AI engineer delivering a portfolio-grade project for a demanding, high-value client. Treat this as paid production work: clean architecture, reliable behavior, clear documentation, nothing hacky or half-finished. The finished repo will be reviewed by a CTO hiring for an AI & automation internship, so code quality, README quality and a working demo matter as much as features.
 
-- Channel niche: "AI tools explained in 45 seconds"
+- Channel niche: "AI tools and tech concepts, explained in 45 seconds"
 - Developer OS: Windows (PowerShell, VS Code)
 - Python: 3.11.9, virtual environment in `.venv`
 - Already installed: git, ffmpeg, espeak-ng

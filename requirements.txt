@@ -1,0 +1,32 @@
+# Runtime dependencies, pinned. Resolved for Windows + Python 3.11.
+# pyproject.toml reads this file, so it is the single source of truth.
+
+# Config, schemas, CLI, logging
+pydantic==2.13.5
+pydantic-settings==2.15.0
+typer==0.27.2
+rich==15.0.0
+
+# HTTP providers (Cloudflare, Replicate, ElevenLabs) and retries
+httpx==0.28.1
+tenacity==9.1.4
+
+# Script generation
+groq==1.7.0
+
+# Local TTS (Kokoro-82M). The spaCy model is pinned so Kokoro never pip-installs it at runtime.
+kokoro==0.9.4
+misaki[en]==0.9.4
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+soundfile==0.14.0
+numpy==2.4.6
+
+# Captions and video
+pillow==11.3.0
+moviepy==2.2.1
+imageio-ffmpeg==0.6.0
+
+# YouTube upload
+google-api-python-client==2.200.0
+google-auth-oauthlib==1.5.0
+google-auth-httplib2==0.4.3
