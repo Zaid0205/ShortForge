@@ -29,7 +29,6 @@ class TTSProviderName(StrEnum):
     """Available text-to-speech backends."""
 
     KOKORO = "kokoro"
-    ELEVENLABS = "elevenlabs"
 
 
 class ImageProviderName(StrEnum):
@@ -59,9 +58,6 @@ class Settings(BaseSettings):
     tts_provider: TTSProviderName = TTSProviderName.KOKORO
     kokoro_voice: str = "af_heart"
     kokoro_speed: float = Field(default=1.0, ge=0.5, le=2.0)
-    elevenlabs_api_key: SecretStr | None = None
-    elevenlabs_voice_id: str | None = None
-    elevenlabs_model: str = "eleven_multilingual_v2"
 
     image_provider: ImageProviderName = ImageProviderName.CLOUDFLARE
     cloudflare_account_id: str | None = None
@@ -154,8 +150,6 @@ def _self_check() -> None:
     console.print(table)
 
     required = ["groq_api_key"]
-    if settings.tts_provider is TTSProviderName.ELEVENLABS:
-        required += ["elevenlabs_api_key", "elevenlabs_voice_id"]
     if settings.image_provider is ImageProviderName.CLOUDFLARE:
         required += ["cloudflare_account_id", "cloudflare_api_token"]
     else:

@@ -17,10 +17,10 @@ def test_defaults_are_free_tier_providers() -> None:
 
 def test_provider_names_are_normalized(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("IMAGE_PROVIDER", " Replicate ")
-    monkeypatch.setenv("TTS_PROVIDER", "ELEVENLABS")
+    monkeypatch.setenv("TTS_PROVIDER", "KOKORO")
     settings = Settings(_env_file=None)
     assert settings.image_provider is ImageProviderName.REPLICATE
-    assert settings.tts_provider is TTSProviderName.ELEVENLABS
+    assert settings.tts_provider is TTSProviderName.KOKORO
 
 
 def test_unknown_provider_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:

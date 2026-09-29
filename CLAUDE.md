@@ -6,7 +6,7 @@ Full spec: see `docs/BRIEF.md`.
 
 ## Stack (fixed decisions)
 - Script: Groq (GPT-OSS 120B, replaced Llama 3.3 70B after Groq retired it in Aug 2026), strict structured outputs, validated with Pydantic
-- TTS: pluggable via `TTS_PROVIDER`. Default `kokoro` (local, needs espeak-ng). Optional `elevenlabs`
+- TTS: pluggable via `TTS_PROVIDER`. `kokoro` (local, needs espeak-ng). ElevenLabs deferred to future work
 - Images: pluggable via `IMAGE_PROVIDER`. Default `cloudflare` (Workers AI, FLUX.1-schnell, free tier). Optional `replicate`
 - Captions: Pillow-rendered PNGs (no MoviePy TextClip / ImageMagick)
 - Video: MoviePy 2.x + ffmpeg, 720x1280, 24fps
@@ -35,7 +35,7 @@ Full spec: see `docs/BRIEF.md`.
 - [x] Setup: git, venv (3.11), espeak-ng, ffmpeg
 - [x] Phase 1: config, models, requirements, provider interfaces
 - [x] Phase 2: script generation
-- [ ] Phase 3: TTS
+- [x] Phase 3: TTS
 - [ ] Phase 4: images
 - [ ] Phase 5: captions + video
 - [ ] Phase 6: pipeline, caching, CLI

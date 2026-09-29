@@ -18,7 +18,7 @@ Pipeline: topic → script (LLM) → voiceover per scene (TTS) → image per sce
 | Step | Tool | Notes |
 |---|---|---|
 | Script | Groq API, GPT-OSS 120B (`openai/gpt-oss-120b`; Llama 3.3 70B was retired by Groq on 2026-08-16) | Strict structured output (JSON schema): title, description, tags, 5 to 7 scenes, each with `narration` and `image_prompt`. Validate with Pydantic. Retry on invalid JSON. |
-| Voice | Pluggable via `TTS_PROVIDER` | Default `kokoro`: Kokoro-82M, open source, runs locally on CPU, uses espeak-ng. Optional `elevenlabs` for premium voice. Common interface so providers are swappable. Generate audio PER SCENE and record each duration. |
+| Voice | Pluggable via `TTS_PROVIDER` | Default `kokoro`: Kokoro-82M, open source, runs locally on CPU, uses espeak-ng. ElevenLabs was deferred to future work; the common interface keeps a new provider to one file. Generate audio PER SCENE and record each duration. |
 | Images | Pluggable via `IMAGE_PROVIDER` | Default `cloudflare`: Cloudflare Workers AI, FLUX.1-schnell (free daily tier, needs `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`). Optional `replicate`. Common interface. 9:16 output (crop or pad if the provider returns another size). Consistent visual style suffix appended to every prompt. |
 | Captions | Pillow-rendered PNG overlays | Do NOT use MoviePy TextClip (ImageMagick dependency). Bold, high-contrast, centered lower-third, 3 to 5 words per chunk. |
 | Video | MoviePy 2.x + ffmpeg | 720x1280, 24fps. Slow Ken Burns zoom per image. Scene duration = that scene's audio duration. |
@@ -42,7 +42,7 @@ shortforge/
 │   ├── config.py
 │   ├── models.py            # Pydantic schemas (Script, Scene)
 │   ├── script.py
-│   ├── tts/                 # base.py, kokoro.py, elevenlabs.py, __init__.py (factory)
+│   ├── tts/                 # base.py, kokoro.py, __init__.py (factory)
 │   ├── images/              # base.py, cloudflare.py, replicate.py, __init__.py (factory)
 │   ├── captions.py
 │   ├── video.py
@@ -83,7 +83,7 @@ shortforge/
 - Then build in phases, and stop after each phase so I can run and verify it:
   1. Setup: config, models, requirements, .env.example, provider interfaces
   2. Script generation (Groq) plus validation
-  3. TTS per scene (Kokoro, then ElevenLabs stub)
+  3. TTS per scene (Kokoro)
   4. Image generation (Cloudflare, then Replicate)
   5. Captions plus video assembly
   6. Pipeline orchestration, caching, CLI

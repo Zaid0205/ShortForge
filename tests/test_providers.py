@@ -16,7 +16,7 @@ from PIL import Image
 from shortforge import images, tts
 from shortforge.config import ConfigError, ImageProviderName, Settings, TTSProviderName
 from shortforge.images.base import ImageGenerator, fit_to_frame
-from shortforge.tts.base import TextToSpeech, wav_duration
+from shortforge.tts.base import SCENE_PAUSE_SECONDS, TextToSpeech, wav_duration
 
 
 class FakeTTS(TextToSpeech):
@@ -27,7 +27,8 @@ class FakeTTS(TextToSpeech):
         return cls()
 
     def _synthesize(self, text: str) -> tuple[np.ndarray, int]:
-        return np.zeros(24_000 * 2, dtype=np.float32), 24_000
+        t = np.arange(24_000 * 2) / 24_000
+        return (0.5 * np.sin(2 * np.pi * 220 * t)).astype(np.float32), 24_000
 
 
 class FakeImages(ImageGenerator):
@@ -58,8 +59,8 @@ def fake_module(monkeypatch: pytest.MonkeyPatch) -> str:
 def test_tts_writes_wav_and_reports_duration(tmp_path: Path) -> None:
     out = tmp_path / "scene_01.wav"
     duration = FakeTTS().synthesize("hello there", out)
-    assert duration == pytest.approx(2.0)
-    assert wav_duration(out) == pytest.approx(2.0)
+    assert duration == pytest.approx(2.0 + SCENE_PAUSE_SECONDS, abs=0.01)
+    assert wav_duration(out) == pytest.approx(duration, abs=0.001)
     assert sf.info(out).subtype == "PCM_16"
 
 

@@ -1,0 +1,13 @@
+# Keep LF line endings in the repo and working tree on every OS.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.wav binary
+*.mp4 binary
+*.gif binary
+*.ttf binary
+*.otf binary

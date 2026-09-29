@@ -1,6 +1,6 @@
 """Text-to-speech providers and the factory that selects one from settings.
 
-Providers are imported lazily, so choosing ElevenLabs never loads torch and Kokoro.
+Providers are imported lazily, so a hosted provider would never load torch and Kokoro.
 To add a provider: implement `TextToSpeech`, add a `TTSProviderName` member, and
 register its import path below. Pipeline code does not change.
 """
@@ -14,7 +14,6 @@ from shortforge.tts.base import TextToSpeech, wav_duration
 
 PROVIDERS: dict[TTSProviderName, str] = {
     TTSProviderName.KOKORO: "shortforge.tts.kokoro:KokoroTTS",
-    TTSProviderName.ELEVENLABS: "shortforge.tts.elevenlabs:ElevenLabsTTS",
 }
 
 
