@@ -5,3 +5,4 @@ __pycache__/
 output/
 token.json
 client_secret*.json
+*.msi
