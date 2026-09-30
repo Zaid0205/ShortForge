@@ -107,8 +107,8 @@ def time_chunks(
 def scene_captions(narration: str, audio_duration: float) -> list[Caption]:
     """Build timed captions for one scene from its narration and audio length.
 
-    Phase 3's audio layout is known exactly: a short margin, the speech, a short margin,
-    then the fixed scene pause. Captions cover the speech; the last one holds to the end.
+    The TTS step's audio layout is known exactly: a short margin, the speech, a short
+    margin, then the fixed scene pause. Captions cover the speech; the last one holds to the end.
     """
     speech_start = min(EDGE_MARGIN_SECONDS, audio_duration / 4)
     speech_end = audio_duration - SCENE_PAUSE_SECONDS - EDGE_MARGIN_SECONDS

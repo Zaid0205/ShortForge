@@ -15,15 +15,16 @@ Full spec: see `docs/BRIEF.md`.
 
 ## Key rules
 - Per-scene TTS: scene duration = its audio duration. No Whisper.
-- Every step caches to `output/<run_id>/` and skips if output exists.
+- Every step caches to `output/<run_id>/` and reuses a file only while its input fingerprint in `run.json` matches.
 - Secrets only in `.env`. Never commit `.env`, `client_secret.json`, `token.json`.
 - Type hints, docstrings, small modules, pinned dependencies.
 - No em dashes in README or docs.
 
 ## Commands
 - Activate env: `.\.venv\Scripts\Activate.ps1`
-- Run: `python -m shortforge.cli "topic"`
+- Run: `shortforge "topic" [--upload] [--resume RUN_ID] [--scenes N]`
 - Tests: `pytest`
+- Lint: `ruff check .` and `ruff format --check .`
 
 ## Working process
 - Discuss and confirm the plan before writing code.
@@ -38,7 +39,7 @@ Full spec: see `docs/BRIEF.md`.
 - [x] Phase 3: TTS
 - [x] Phase 4: images
 - [x] Phase 5: captions + video
-- [ ] Phase 6: pipeline, caching, CLI
-- [ ] Phase 7: YouTube upload
-- [ ] Phase 8: README, tests, cleanup
+- [x] Phase 6: pipeline, caching, CLI
+- [x] Phase 7: YouTube upload
+- [x] Phase 8: README, tests, cleanup
 - [ ] Phase 9: MCP server (stretch)

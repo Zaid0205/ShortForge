@@ -1,7 +1,7 @@
 """Shared rich console and a timed step helper for readable progress output.
 
-Progress goes to stderr so stdout stays clean for results (and for the MCP stdio
-transport in the stretch phase).
+Progress goes to stderr so stdout stays clean for results and for an MCP stdio
+transport.
 """
 
 from __future__ import annotations
