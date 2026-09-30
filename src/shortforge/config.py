@@ -59,14 +59,16 @@ class Settings(BaseSettings):
     kokoro_voice: str = "af_heart"
     kokoro_speed: float = Field(default=1.0, ge=0.5, le=2.0)
 
+    image_source: Literal["hybrid", "generated"] = "generated"
+    pexels_api_key: SecretStr | None = None
     image_provider: ImageProviderName = ImageProviderName.CLOUDFLARE
     cloudflare_account_id: str | None = None
     cloudflare_api_token: SecretStr | None = None
-    cloudflare_image_model: str = "@cf/black-forest-labs/flux-1-schnell"
+    cloudflare_image_model: str = "@cf/black-forest-labs/flux-2-klein-4b"
     cloudflare_steps: int = Field(default=4, ge=1, le=8)
     image_style: str = (
-        "clean modern tech illustration, soft cinematic lighting, deep blue and cyan palette, "
-        "high detail, vertical composition, subject centered"
+        "realistic documentary photograph, natural light, true-to-life colors, sharp focus, "
+        "shot on a full-frame camera, vertical composition, subject large in frame"
     )
 
     video_width: int = Field(default=720, gt=0)
@@ -83,7 +85,12 @@ class Settings(BaseSettings):
     max_retries: int = Field(default=4, ge=1, le=10)
 
     @field_validator(
-        "tts_provider", "image_provider", "youtube_privacy", "groq_reasoning_effort", mode="before"
+        "tts_provider",
+        "image_provider",
+        "image_source",
+        "youtube_privacy",
+        "groq_reasoning_effort",
+        mode="before",
     )
     @classmethod
     def _normalize_choice(cls, value: object) -> object:
@@ -165,6 +172,8 @@ def _self_check() -> None:
     required = ["groq_api_key"]
     if settings.image_provider is ImageProviderName.CLOUDFLARE:
         required += ["cloudflare_account_id", "cloudflare_api_token"]
+    if settings.image_source == "hybrid":
+        required += ["pexels_api_key"]
 
     missing = [name.upper() for name in required if getattr(settings, name) is None]
     if missing:
@@ -172,7 +181,8 @@ def _self_check() -> None:
         raise SystemExit(1)
     console.print(
         f"[bold green]OK[/] TTS={settings.tts_provider.value}, "
-        f"images={settings.image_provider.value}, all required keys present."
+        f"images={settings.image_source} ({settings.image_provider.value} for generation), "
+        "all required keys present."
     )
 
 

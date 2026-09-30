@@ -1,7 +1,13 @@
-"""FLUX.1-schnell on Cloudflare Workers AI, covered by Cloudflare's free daily allocation.
+"""FLUX image generation on Cloudflare Workers AI, covered by the free daily allocation.
 
-One POST per image. The API returns a base64-encoded square JPEG, which the base class
-crops to the 9:16 video frame.
+Two model families are supported, chosen by ``CLOUDFLARE_IMAGE_MODEL``:
+
+* FLUX.2 (default ``flux-2-klein-4b``): multipart form request with the exact frame size,
+  so images arrive as 720x1280 with no crop.
+* FLUX.1 schnell: JSON request with a step count; returns a square image that the base
+  class center-crops to the 9:16 frame.
+
+Both return a base64-encoded image.
 """
 
 from __future__ import annotations
@@ -18,7 +24,8 @@ from shortforge.retry import call_with_retries
 
 API_URL = "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}"
 MAX_PROMPT_CHARS = 2048
-REQUEST_TIMEOUT_SECONDS = 90.0
+REQUEST_TIMEOUT_SECONDS = 240.0
+"""FLUX.2 can take well over a minute when the service is busy."""
 
 
 class CloudflareImages(ImageGenerator):
@@ -42,6 +49,7 @@ class CloudflareImages(ImageGenerator):
         super().__init__(style, width, height)
         self.url = API_URL.format(account_id=account_id, model=model)
         self.steps = steps
+        self.multipart = "flux-2" in model
         self.max_attempts = max_attempts
         self._client = client or httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS)
         self._headers = {"Authorization": f"Bearer {api_token}"}
@@ -60,9 +68,18 @@ class CloudflareImages(ImageGenerator):
             max_attempts=settings.max_retries,
         )
 
-    def _post(self, payload: dict[str, Any]) -> httpx.Response:
-        """Send one request; raise `httpx.HTTPStatusError` on a non-2xx status."""
-        response = self._client.post(self.url, json=payload, headers=self._headers)
+    def _post(self, prompt: str) -> httpx.Response:
+        """Send one request in the model's format; raise on a non-2xx status."""
+        if self.multipart:
+            parts = {
+                "prompt": (None, prompt),
+                "width": (None, str(self.width)),
+                "height": (None, str(self.height)),
+            }
+            response = self._client.post(self.url, files=parts, headers=self._headers)
+        else:
+            payload = {"prompt": prompt, "steps": self.steps}
+            response = self._client.post(self.url, json=payload, headers=self._headers)
         response.raise_for_status()
         return response
 
@@ -73,10 +90,9 @@ class CloudflareImages(ImageGenerator):
                 f"Styled prompt is {len(prompt)} characters; Cloudflare accepts at most "
                 f"{MAX_PROMPT_CHARS}. Shorten IMAGE_STYLE."
             )
-        payload = {"prompt": prompt, "steps": self.steps}
         try:
             response = call_with_retries(
-                lambda: self._post(payload),
+                lambda: self._post(prompt),
                 what="Cloudflare image request",
                 attempts=self.max_attempts,
             )
@@ -84,7 +100,7 @@ class CloudflareImages(ImageGenerator):
             raise _explain(exc) from exc
 
         body = response.json()
-        if not body.get("success", False):
+        if body.get("success") is False:
             raise RuntimeError(f"Cloudflare reported a failure: {_error_text(body)}")
         try:
             return base64.b64decode(body["result"]["image"], validate=True)

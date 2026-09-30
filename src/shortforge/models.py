@@ -78,7 +78,7 @@ CleanStr = Annotated[str, BeforeValidator(clean_text)]
 _TEXT_IN_IMAGE_RE = re.compile(
     r"\b(words?|letters?|text|texts|typed|typing|writing|written|labell?ed|labels?|captions?|"
     r"signs?|signage|numbers?|digits?|numerals?|alphabet|fonts?|headlines?|subwords?|"
-    r"handwriting|scrolling|lettering|inscribed|spelled|spelling)\b",
+    r"handwriting|scrolling|lettering|inscribed|spelled|spelling|symbols?|logos?)\b",
     re.IGNORECASE,
 )
 
@@ -88,25 +88,40 @@ def count_words(text: str) -> int:
     return len(_WORD_RE.findall(text))
 
 
+def reject_visible_text(prompt: str) -> str:
+    """Raise `ValueError` if an image description asks for writing of any kind."""
+    found = sorted({m.group(0).lower() for m in _TEXT_IN_IMAGE_RE.finditer(prompt)})
+    if found:
+        raise ValueError(
+            f"asks for visible text ({', '.join(found)}); describe the idea with objects, "
+            "people, places or motion instead, with nothing written on anything"
+        )
+    return prompt
+
+
 class Scene(BaseModel):
     """One beat of the Short: a line of narration and the image shown while it plays."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="ignore")
 
     narration: CleanStr = Field(min_length=10, max_length=400)
+    search_query: CleanStr = Field(min_length=3, max_length=60)
     image_prompt: CleanStr = Field(min_length=10, max_length=600)
+
+    @field_validator("search_query")
+    @classmethod
+    def _short_query(cls, query: str) -> str:
+        """Stock search works best with a few concrete words."""
+        words = len(query.split())
+        if not 1 <= words <= 6:
+            raise ValueError(f"must be 1 to 6 words for a stock photo search, got {words}")
+        return query
 
     @field_validator("image_prompt")
     @classmethod
     def _no_visible_text(cls, prompt: str) -> str:
         """Reject prompts that ask for writing, which image models render as garbled glyphs."""
-        found = sorted({m.group(0).lower() for m in _TEXT_IN_IMAGE_RE.finditer(prompt)})
-        if found:
-            raise ValueError(
-                f"asks for visible text ({', '.join(found)}); describe the idea with objects, "
-                "light or motion instead, with nothing written on anything"
-            )
-        return prompt
+        return reject_visible_text(prompt)
 
 
 class Script(BaseModel):
@@ -173,7 +188,11 @@ def _self_check() -> None:
         "description": "What a vector database is and why every AI app seems to use one.",
         "tags": ["#AI", "vector database", "RAG", "ai"],
         "scenes": [
-            {"narration": f"{line} Scene {i}.", "image_prompt": "glowing points in 3D space"}
+            {
+                "narration": f"{line} Scene {i}.",
+                "search_query": "server room",
+                "image_prompt": "rows of servers in a data center",
+            }
             for i in range(1, 7)
         ],
     }

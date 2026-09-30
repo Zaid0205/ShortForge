@@ -37,7 +37,14 @@ def script_json(scenes: int = 6, words_per_scene: int = 16) -> str:
             "title": "RAG in 45 seconds",
             "description": "How retrieval augmented generation keeps AI answers grounded.",
             "tags": ["AI", "RAG", "LLM"],
-            "scenes": [{"narration": narration, "image_prompt": "a glowing library"}] * scenes,
+            "scenes": [
+                {
+                    "narration": narration,
+                    "search_query": "library shelves",
+                    "image_prompt": "a quiet library with tall shelves",
+                }
+            ]
+            * scenes,
         }
     )
 
@@ -135,6 +142,19 @@ def test_retired_model_becomes_config_error(settings: Settings) -> None:
         generate_script("RAG", 6, settings, client)
 
 
+def test_request_too_large_is_explained(settings: Settings) -> None:
+    client = FakeClient(api_error(groq.APIStatusError, 413, "rate_limit_exceeded: TPM"))
+    with pytest.raises(ScriptGenerationError, match="tokens-per-minute"):
+        generate_script("RAG", 6, settings, client)
+
+
+def test_completion_budget_fits_groq_free_tier() -> None:
+    from shortforge.script import MAX_COMPLETION_TOKENS, build_system_prompt
+
+    prompt_tokens_estimate = len(build_system_prompt("AI tools explained", 7)) // 3
+    assert MAX_COMPLETION_TOKENS + prompt_tokens_estimate < 8000
+
+
 def test_truncated_reply_is_reported(settings: Settings) -> None:
     client = FakeClient('{"title": "cut off', finish_reason="length")
     with pytest.raises(ScriptGenerationError, match="token limit"):
@@ -165,6 +185,9 @@ def test_prompt_mentions_niche_and_scene_count() -> None:
     assert "Exactly 7 scenes" in prompt
     assert "technically correct" in prompt
     assert "Never ask for diagrams" in prompt
+    assert "search_query" in prompt
+    assert "within one second" in prompt
+    assert "beads" not in prompt
 
 
 def test_save_and_load_round_trip(tmp_path: Path, settings: Settings) -> None:

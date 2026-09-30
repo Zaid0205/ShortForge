@@ -31,7 +31,10 @@ from shortforge.retry import call_with_retries
 
 TARGET_WORDS = (MIN_WORDS + MAX_WORDS) // 2
 TEMPERATURE = 0.7
-MAX_COMPLETION_TOKENS = 8192  # reasoning models spend part of this budget thinking
+MAX_COMPLETION_TOKENS = 3000
+"""Room for reasoning plus the JSON reply (a script is under 1,000 tokens). Groq counts the
+prompt plus this limit against the free tier's 8,000 tokens per minute, so it must stay
+well below that."""
 
 _STRING = {"type": "string"}
 SCRIPT_JSON_SCHEMA: dict[str, Any] = {
@@ -44,8 +47,12 @@ SCRIPT_JSON_SCHEMA: dict[str, Any] = {
             "type": "array",
             "items": {
                 "type": "object",
-                "properties": {"narration": _STRING, "image_prompt": _STRING},
-                "required": ["narration", "image_prompt"],
+                "properties": {
+                    "narration": _STRING,
+                    "search_query": _STRING,
+                    "image_prompt": _STRING,
+                },
+                "required": ["narration", "search_query", "image_prompt"],
                 "additionalProperties": False,
             },
         },
@@ -78,8 +85,9 @@ Fields:
 - title: catchy, under 70 characters, no hashtags.
 - description: one or two sentences summarizing the video.
 - tags: 5 to 10 short search tags, no # symbols.
-- scenes: each has "narration" (what the voiceover says) and "image_prompt" (what the image
-  shows).
+- scenes: each has "narration" (what the voiceover says), "search_query" (words to find a real
+  stock photo for the scene) and "image_prompt" (a photo description, used only when no stock
+  photo fits).
 
 Rules:
 - Exactly {scenes} scenes.
@@ -93,15 +101,16 @@ Rules:
 - Narration is spoken aloud by a TTS voice and shown as captions: plain sentences punctuated
   with commas and periods only, no dashes, emojis, markdown or lists. Write numbers and symbols
   as words where a voice would ("fifty percent", "C plus plus").
-- image_prompt describes ONE concrete scene or visual metaphor for an image model: a physical
-  subject in a setting, with lighting and mood (for example "a lone lighthouse beam cutting
-  through dense fog at night"). Never ask for diagrams, charts, graphs, icons, arrows,
-  screens, user interfaces, split screens, timelines, logos or real people. Nothing may be
-  written on anything: no words, letters, numbers, labels, signs or pages with writing, and
-  do not use those words at all. Image models render writing as garbled fake glyphs. For
-  topics about language or text, show the idea through objects instead (beads on a string,
-  puzzle pieces, threads of light). Do not describe an art style; a shared style is added
-  automatically."""
+- Each scene's picture must show what its narration is about, so a viewer who hears the line
+  sees the connection within one second.
+- search_query: 2 to 4 plain words naming concrete things a camera can photograph, the way
+  you would search a stock photo site. No abstract concepts, no brand or product names, no
+  jargon. Different scenes need different queries.
+- image_prompt: a realistic photograph of that same moment: subject, action, real-world
+  setting, natural lighting. Never ask for diagrams, charts, icons, arrows, screen contents,
+  user interfaces, split screens, logos, symbols or real people. Nothing may be written on
+  anything: no words, letters, numbers, labels or signs, and do not use those words at all.
+  Do not describe an art style; a shared style is added automatically."""
 
 
 def build_user_prompt(topic: str) -> str:
@@ -201,6 +210,14 @@ def generate_script(
             messages.append({"role": "user", "content": _feedback(f"- {last_problem}")})
             console.print(f"  [yellow]![/] attempt {attempt}: {last_problem}, asking for a fix")
             continue
+        except groq.APIStatusError as exc:
+            if exc.status_code != 413:
+                raise
+            raise ScriptGenerationError(
+                "Groq rejected the request as too large for your tokens-per-minute limit "
+                f"(HTTP 413). The prompt plus MAX_COMPLETION_TOKENS ({MAX_COMPLETION_TOKENS}) "
+                "in script.py must fit your Groq tier's per-minute token limit."
+            ) from exc
 
         choice = response.choices[0]
         content = choice.message.content or ""

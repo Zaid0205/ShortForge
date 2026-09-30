@@ -17,7 +17,14 @@ def make_script(scenes: int = 6, words_per_scene: int = 15, **overrides: object)
         "title": "Vector databases in 45 seconds",
         "description": "What a vector database is and why every AI app uses one.",
         "tags": ["AI", "vector database", "RAG"],
-        "scenes": [{"narration": narration, "image_prompt": "glowing points in space"}] * scenes,
+        "scenes": [
+            {
+                "narration": narration,
+                "search_query": "server room",
+                "image_prompt": "rows of servers in a data center",
+            }
+        ]
+        * scenes,
     }
     payload.update(overrides)
     return payload
@@ -95,6 +102,7 @@ def test_all_text_fields_are_cleaned() -> None:
     payload["scenes"] = [
         {
             "narration": "A vector\u2014a list of numbers " + " ".join(["word"] * 12),
+            "search_query": "lighthouse\u2019s beam",
             "image_prompt": "a lighthouse\u2019s beam in fog",
         }
     ] * 6
@@ -119,7 +127,7 @@ def test_all_text_fields_are_cleaned() -> None:
 )
 def test_image_prompt_asking_for_text_is_rejected(prompt: str) -> None:
     with pytest.raises(ValidationError, match="asks for visible text"):
-        Scene(narration="Tokens are pieces of words.", image_prompt=prompt)
+        Scene(narration="Tokens are pieces of words.", search_query="library", image_prompt=prompt)
 
 
 @pytest.mark.parametrize(
@@ -132,5 +140,20 @@ def test_image_prompt_asking_for_text_is_rejected(prompt: str) -> None:
 )
 def test_image_prompt_without_text_is_accepted(prompt: str) -> None:
     assert (
-        Scene(narration="Tokens are pieces of words.", image_prompt=prompt).image_prompt == prompt
+        Scene(
+            narration="Tokens are pieces of words.", search_query="library", image_prompt=prompt
+        ).image_prompt
+        == prompt
     )
+
+
+@pytest.mark.parametrize("query", ["", "a b c d e f g", "x" * 70])
+def test_search_query_must_be_short(query: str) -> None:
+    with pytest.raises(ValidationError):
+        Scene(narration="Tokens are pieces of words.", search_query=query, image_prompt="a library")
+
+
+def test_symbols_and_logos_count_as_text() -> None:
+    for prompt in ("floating matrix symbols around a chip", "a graphics card with a glowing logo"):
+        with pytest.raises(ValidationError, match="asks for visible text"):
+            Scene(narration="Tokens are pieces of words.", search_query="chip", image_prompt=prompt)

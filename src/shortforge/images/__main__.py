@@ -1,7 +1,8 @@
 """Self-check: `python -m shortforge.images` renders the self-check script's scenes.
 
 Reads `output/_selfcheck/script.json` (written by `python -m shortforge.script`) and saves
-one frame-sized PNG per scene plus `contact_sheet.png`, a grid of all scenes for review.
+one frame-sized PNG per scene, from Pexels or generated depending on ``IMAGE_SOURCE``, plus
+`contact_sheet.png`, a grid of all scenes for review.
 """
 
 from __future__ import annotations
@@ -14,8 +15,9 @@ from pydantic import ValidationError
 
 from shortforge.config import ConfigError, get_settings
 from shortforge.fsutil import atomic_path
-from shortforge.images import create_image_generator
+from shortforge.images.sourcing import SceneImage, SceneImageSource
 from shortforge.log import console, step
+from shortforge.models import Scene
 from shortforge.script import load_script
 
 THUMB_WIDTH, THUMB_HEIGHT = 216, 384
@@ -43,22 +45,27 @@ def contact_sheet(rows: list[tuple[str, list[Path]]]) -> Image.Image:
     return sheet
 
 
-def render_scenes(prompts: list[str], folder: Path) -> list[Path]:
-    """Render every prompt with the configured provider, returning the PNG paths."""
-    generator = create_image_generator()
-    paths = []
-    for index, prompt in enumerate(prompts, start=1):
+def render_scenes(scenes: list[Scene], folder: Path) -> tuple[list[Path], list[SceneImage]]:
+    """Produce every scene's image with the configured source, returning paths and origins."""
+    source = SceneImageSource.from_settings(get_settings())
+    paths, results = [], []
+    for index, scene in enumerate(scenes, start=1):
         out = folder / f"scene_{index:02d}.png"
         started = time.perf_counter()
         with atomic_path(out) as tmp:
-            generator.generate(prompt, tmp)
-        console.print(f"  scene {index}: {time.perf_counter() - started:.1f}s -> {out}")
+            result = source.render(scene, tmp)
+        detail = result.credit or f"generated from: {scene.image_prompt[:60]}"
+        console.print(
+            f"  scene {index}: {result.source}, {time.perf_counter() - started:.1f}s "
+            f"[dim]({scene.search_query!r}) {detail}[/]"
+        )
         paths.append(out)
-    return paths
+        results.append(result)
+    return paths, results
 
 
 def main() -> None:
-    """Render the scenes and write the review sheet."""
+    """Produce the scene images and write the review sheet."""
     settings = get_settings()
     folder = settings.output_dir / "_selfcheck"
     script_path = folder / "script.json"
@@ -67,7 +74,7 @@ def main() -> None:
         console.print(f"[bold red]Error:[/] {script_path} not found. {regenerate}")
         raise SystemExit(1)
     try:
-        prompts = [scene.image_prompt for scene in load_script(script_path).scenes]
+        scenes = load_script(script_path).scenes
     except ValidationError as exc:
         console.print(
             f"[bold red]Error:[/] {script_path} no longer passes validation "
@@ -75,18 +82,19 @@ def main() -> None:
         )
         raise SystemExit(1) from exc
 
-    label = f"{settings.image_provider.value}, {settings.cloudflare_steps} steps"
     try:
-        with step(f"{label} ({len(prompts)} images)"):
-            paths = render_scenes(prompts, folder)
+        with step(f"Images ({settings.image_source}, {len(scenes)} scenes)"):
+            paths, results = render_scenes(scenes, folder)
     except (ConfigError, RuntimeError, ValueError) as exc:
         console.print(f"[bold red]Error:[/] {exc}")
         raise SystemExit(1) from exc
 
+    stock = sum(r.source == "stock" for r in results)
+    label = f"{settings.image_source}: {stock} stock photos, {len(results) - stock} generated"
     sheet_path = folder / "contact_sheet.png"
     with atomic_path(sheet_path) as tmp:
         contact_sheet([(label, paths)]).save(tmp)
-    console.print(f"[green]Saved[/] {sheet_path}")
+    console.print(f"[green]Saved[/] {sheet_path} ({label})")
 
 
 if __name__ == "__main__":

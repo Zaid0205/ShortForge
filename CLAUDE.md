@@ -7,7 +7,7 @@ Full spec: see `docs/BRIEF.md`.
 ## Stack (fixed decisions)
 - Script: Groq (GPT-OSS 120B, replaced Llama 3.3 70B after Groq retired it in Aug 2026), strict structured outputs, validated with Pydantic
 - TTS: pluggable via `TTS_PROVIDER`. `kokoro` (local, needs espeak-ng). ElevenLabs deferred to future work
-- Images: pluggable via `IMAGE_PROVIDER`. `cloudflare` (Workers AI, FLUX.1-schnell, free tier). Replicate deferred to future work
+- Images: `IMAGE_SOURCE=generated` (default): Cloudflare Workers AI, FLUX.2 klein 4B, native 720x1280, realistic photo style. `hybrid`: Pexels stock photo per scene with FLUX fallback (needs PEXELS_API_KEY). Replicate deferred
 - Captions: Pillow-rendered PNGs (no MoviePy TextClip / ImageMagick)
 - Video: MoviePy 2.x + ffmpeg, 720x1280, 24fps
 - Upload: YouTube Data API v3, OAuth desktop, uploads as private
@@ -37,7 +37,7 @@ Full spec: see `docs/BRIEF.md`.
 - [x] Phase 2: script generation
 - [x] Phase 3: TTS
 - [x] Phase 4: images
-- [ ] Phase 5: captions + video
+- [x] Phase 5: captions + video
 - [ ] Phase 6: pipeline, caching, CLI
 - [ ] Phase 7: YouTube upload
 - [ ] Phase 8: README, tests, cleanup
