@@ -117,6 +117,16 @@ class Scene(BaseModel):
             raise ValueError(f"must be 1 to 6 words for a stock photo search, got {words}")
         return query
 
+    @field_validator("narration")
+    @classmethod
+    def _speakable(cls, narration: str) -> str:
+        """Reject brackets, which a TTS voice reads awkwardly and captions show as clutter."""
+        if any(char in narration for char in "()[]{}"):
+            raise ValueError(
+                "must not contain brackets; say the explanation as part of the sentence instead"
+            )
+        return narration
+
     @field_validator("image_prompt")
     @classmethod
     def _no_visible_text(cls, prompt: str) -> str:

@@ -157,3 +157,9 @@ def test_symbols_and_logos_count_as_text() -> None:
     for prompt in ("floating matrix symbols around a chip", "a graphics card with a glowing logo"):
         with pytest.raises(ValidationError, match="asks for visible text"):
             Scene(narration="Tokens are pieces of words.", search_query="chip", image_prompt=prompt)
+
+
+@pytest.mark.parametrize("narration", ["A GPU (graphics card) is fast.", "RAM [memory] is quick."])
+def test_brackets_in_narration_are_rejected(narration: str) -> None:
+    with pytest.raises(ValidationError, match="must not contain brackets"):
+        Scene(narration=narration, search_query="computer", image_prompt="a desk with a computer")

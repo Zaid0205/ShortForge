@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     groq_api_key: SecretStr | None = None
     groq_model: str = "openai/gpt-oss-120b"
     groq_reasoning_effort: Literal["low", "medium", "high"] = "medium"
+    script_editor: bool = True
 
     channel_niche: str = "AI tools and tech concepts, explained in 45 seconds"
 
