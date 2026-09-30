@@ -6,6 +6,8 @@ A run goes through four steps, each writing into ``output/<run_id>/``:
 2. Voice: `scene_XX.wav` per scene; each duration sets that scene's length.
 3. Images: `scene_XX.png` per scene.
 4. Video: `final.mp4`.
+5. Upload (only with ``upload=True``): the video goes to YouTube and its ID is recorded,
+   so a second upload of the same render is skipped.
 
 A step reuses an existing file when the fingerprint stored in `run.json` still matches
 its inputs (see `shortforge.runs`), so a failed or interrupted run resumes where it
@@ -29,6 +31,7 @@ from shortforge.models import MAX_SCENES, MIN_SCENES, Scene, Script
 from shortforge.runs import RunError, RunManifest, RunStore, SceneRecord, fingerprint
 from shortforge.script import generate_script, load_script, save_script
 from shortforge.tts import TextToSpeech, create_tts, wav_duration
+from shortforge.upload import YouTubeUploader
 from shortforge.video import SceneAssets, assemble_video
 
 TARGET_SECONDS = (30.0, 50.0)
@@ -50,6 +53,12 @@ class RunResult:
     def video(self) -> Path:
         """Path to the finished MP4."""
         return self.folder / "final.mp4"
+
+    @property
+    def youtube_url(self) -> str | None:
+        """Shorts link of the uploaded video, if this run was uploaded."""
+        video_id = self.manifest.youtube_id
+        return f"https://youtube.com/shorts/{video_id}" if video_id else None
 
     @property
     def credits(self) -> list[str]:
@@ -79,6 +88,7 @@ class Pipeline:
         tts_factory: Callable[[Settings], TextToSpeech] = create_tts,
         image_factory: Callable[[Settings], SceneImageSource] = SceneImageSource.from_settings,
         render: Renderer = assemble_video,
+        uploader_factory: Callable[[Settings], YouTubeUploader] = YouTubeUploader,
         progress: bool = True,
     ) -> None:
         self.settings = settings or get_settings()
@@ -87,12 +97,17 @@ class Pipeline:
         self._tts_factory = tts_factory
         self._image_factory = image_factory
         self._render = render
+        self._uploader_factory = uploader_factory
         self._progress = progress
         self.run_id: str | None = None
         """ID of the run most recently started or resumed, set before any step runs."""
 
     def run(
-        self, topic: str | None = None, scenes: int | None = None, resume: str | None = None
+        self,
+        topic: str | None = None,
+        scenes: int | None = None,
+        resume: str | None = None,
+        upload: bool = False,
     ) -> RunResult:
         """Produce a finished Short for `topic`, or continue the run `resume`.
 
@@ -100,6 +115,7 @@ class Pipeline:
             topic: What the Short is about. Optional when resuming; must match if given.
             scenes: Number of scenes (5 to 7) for a new run; defaults to ``DEFAULT_SCENES``.
             resume: ID of an existing run to continue.
+            upload: Also upload the finished video to YouTube.
 
         Raises:
             RunError: If the arguments conflict or the run cannot be found.
@@ -116,6 +132,8 @@ class Pipeline:
             self._voice_step(manifest, folder, script)
             self._image_step(manifest, folder, script)
             self._video_step(manifest, folder, script)
+            if upload:
+                self._upload_step(manifest, folder, script)
         except BaseException as exc:
             manifest.status = "failed"
             manifest.error = "interrupted" if isinstance(exc, KeyboardInterrupt) else str(exc)
@@ -288,6 +306,30 @@ class Pipeline:
             manifest.video_key, manifest.video_seconds = key, round(seconds, 2)
             manifest.step_seconds["video"] = round(time.perf_counter() - started, 1)
             self.store.save(manifest)
+
+    def _upload_step(self, manifest: RunManifest, folder: Path, script: Script) -> None:
+        with step("Upload to YouTube"):
+            if manifest.youtube_id and manifest.youtube_video_key == manifest.video_key:
+                console.print(
+                    f"  already uploaded: https://youtube.com/shorts/{manifest.youtube_id}"
+                )
+                return
+            if manifest.youtube_id:
+                console.print(
+                    f"  the video changed since its upload (https://youtube.com/shorts/"
+                    f"{manifest.youtube_id}); uploading the new version. The old one stays on "
+                    "YouTube until you delete it in Studio."
+                )
+            started = time.perf_counter()
+            credits = RunResult(manifest, script, folder).credits
+            result = self._uploader_factory(self.settings).upload(
+                folder / "final.mp4", script, credits
+            )
+            manifest.youtube_id, manifest.youtube_privacy = result.video_id, result.privacy
+            manifest.youtube_video_key = manifest.video_key
+            manifest.step_seconds["upload"] = round(time.perf_counter() - started, 1)
+            self.store.save(manifest)
+            console.print(f"  {result.privacy}: {result.url}")
 
 
 def _is_current(path: Path, stored_key: str | None, key: str) -> bool:

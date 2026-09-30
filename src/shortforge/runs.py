@@ -53,6 +53,10 @@ class RunManifest(BaseModel):
     scene_records: list[SceneRecord] = Field(default_factory=list)
     video_key: str | None = None
     video_seconds: float | None = None
+    youtube_id: str | None = None
+    youtube_privacy: str | None = None
+    youtube_video_key: str | None = None
+    """The `video_key` of the render that was uploaded, to detect a changed video."""
     step_seconds: dict[str, float] = Field(default_factory=dict)
 
 

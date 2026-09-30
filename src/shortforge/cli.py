@@ -1,7 +1,7 @@
-"""Command-line interface: ``shortforge "topic" [--scenes N] [--resume RUN_ID]``.
+"""Command-line interface: ``shortforge "topic" [--upload] [--resume RUN_ID] [--scenes N]``.
 
-Progress goes to stderr; the finished video's path is the only thing printed to stdout,
-so the command composes with other tools.
+Progress goes to stderr; only results go to stdout (the video path, then the YouTube link
+when uploading), so the command composes with other tools.
 """
 
 from __future__ import annotations
@@ -38,6 +38,9 @@ def _summary(result: RunResult, elapsed: float) -> Table:
     table.add_row("Size", f"{result.video.stat().st_size / 1_000_000:.1f} MB")
     table.add_row("Script", f"{result.script.word_count} words")
     table.add_row("Images", ", ".join(f"{sources.count(s)} {s}" for s in dict.fromkeys(sources)))
+    if result.youtube_url:
+        privacy = manifest.youtube_privacy or "private"
+        table.add_row("YouTube", f"{result.youtube_url} ({privacy})")
     if result.credits:
         table.add_row("Credits", "\n".join(result.credits))
     table.add_row("Time", f"{elapsed:.0f}s this run")
@@ -63,14 +66,21 @@ def main(
         str | None,
         typer.Option("--resume", "-r", help="Continue an earlier run by its ID."),
     ] = None,
+    upload: Annotated[
+        bool, typer.Option("--upload", "-u", help="Upload the finished video to YouTube.")
+    ] = False,
     debug: Annotated[bool, typer.Option("--debug", help="Show full tracebacks on errors.")] = False,
 ) -> None:
-    """Generate a Short for TOPIC, or finish an earlier run with --resume."""
+    """Generate a Short for TOPIC, or finish an earlier run with --resume.
+
+    With --upload the video also goes to YouTube (private by default) and its link is
+    printed after the video path.
+    """
     started = time.perf_counter()
     pipeline: Pipeline | None = None
     try:
         pipeline = Pipeline(get_settings())
-        result = pipeline.run(topic, scenes, resume)
+        result = pipeline.run(topic, scenes, resume, upload)
     except KeyboardInterrupt:
         console.print("[yellow]Interrupted.[/]")
         _resume_hint(pipeline)
@@ -88,6 +98,8 @@ def main(
 
     console.print(_summary(result, time.perf_counter() - started))
     typer.echo(str(result.video))
+    if result.youtube_url:
+        typer.echo(result.youtube_url)
 
 
 def _resume_hint(pipeline: Pipeline | None) -> None:

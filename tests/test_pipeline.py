@@ -18,6 +18,7 @@ from shortforge.images.sourcing import SceneImage
 from shortforge.models import Scene, Script
 from shortforge.pipeline import Pipeline
 from shortforge.runs import RunError
+from shortforge.upload import UploadError, UploadResult
 from shortforge.video import SceneAssets
 
 SAMPLE_RATE = 8_000
@@ -89,6 +90,18 @@ class FakeRender:
         return sum(sf.info(scene.audio).duration for scene in scenes)
 
 
+class FakeUploader:
+    def __init__(self, fail: bool = False) -> None:
+        self.fail = fail
+        self.uploads: list[tuple[Path, str, list[str]]] = []
+
+    def upload(self, video: Path, script: Script, credits: list[str]) -> UploadResult:
+        if self.fail:
+            raise UploadError("YouTube API daily quota used up")
+        self.uploads.append((video, script.title, credits))
+        return UploadResult(f"vid{len(self.uploads)}", "private")
+
+
 class Harness:
     """A pipeline wired to fakes, plus handles to inspect what each fake did."""
 
@@ -100,6 +113,7 @@ class Harness:
             FakeImages(),
             FakeRender(),
         )
+        self.uploader = FakeUploader()
 
     def pipeline(self, settings: Settings | None = None) -> Pipeline:
         return Pipeline(
@@ -108,6 +122,7 @@ class Harness:
             tts_factory=lambda _: self.tts,
             image_factory=lambda _: self.images,
             render=self.render,
+            uploader_factory=lambda _: self.uploader,
             progress=False,
         )
 
@@ -248,3 +263,64 @@ def test_cli_needs_a_topic_or_resume(harness: Harness, monkeypatch: pytest.Monke
     outcome = CliRunner().invoke(cli.app, [])
     assert outcome.exit_code == 1
     assert "Give a topic" in outcome.stderr
+
+
+def test_upload_happens_once_per_render(harness: Harness) -> None:
+    result = harness.pipeline().run("What is RAG", upload=True)
+    assert result.youtube_url == "https://youtube.com/shorts/vid1"
+    assert result.manifest.youtube_privacy == "private"
+    assert harness.uploader.uploads[0][0] == result.video
+    assert "upload" in result.manifest.step_seconds
+
+    again = harness.pipeline().run(resume=result.manifest.run_id, upload=True)
+    assert len(harness.uploader.uploads) == 1
+    assert again.youtube_url == "https://youtube.com/shorts/vid1"
+
+
+def test_no_upload_without_the_flag(harness: Harness) -> None:
+    result = harness.pipeline().run("What is RAG")
+    assert harness.uploader.uploads == []
+    assert result.youtube_url is None
+
+
+def test_existing_run_can_be_uploaded_later(harness: Harness) -> None:
+    run_id = harness.pipeline().run("What is RAG").manifest.run_id
+    harness.pipeline().run(resume=run_id, upload=True)
+    assert len(harness.uploader.uploads) == 1
+    assert harness.render.calls == 1
+
+
+def test_changed_video_is_uploaded_again(harness: Harness) -> None:
+    result = harness.pipeline().run("What is RAG", upload=True)
+    path = result.folder / "script.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["scenes"][0]["narration"] = "A sharper opening line that makes a curious viewer stop."
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+    again = harness.pipeline().run(resume=result.manifest.run_id, upload=True)
+    assert len(harness.uploader.uploads) == 2
+    assert again.youtube_url == "https://youtube.com/shorts/vid2"
+
+
+def test_failed_upload_keeps_the_video_and_marks_the_run(harness: Harness) -> None:
+    harness.uploader = FakeUploader(fail=True)
+    pipeline = harness.pipeline()
+    with pytest.raises(UploadError, match="quota"):
+        pipeline.run("What is RAG", upload=True)
+    assert pipeline.run_id is not None
+    manifest = pipeline.store.load(pipeline.run_id)
+    assert manifest.status == "failed"
+    assert manifest.video_key is not None
+    assert manifest.youtube_id is None
+
+
+def test_cli_prints_video_path_then_youtube_link(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "get_settings", lambda: harness.settings)
+    monkeypatch.setattr(cli, "Pipeline", lambda settings: harness.pipeline(settings))
+    outcome = CliRunner().invoke(cli.app, ["What is RAG", "--upload"])
+    assert outcome.exit_code == 0, outcome.output
+    path, url = outcome.stdout.strip().splitlines()
+    assert path.endswith("final.mp4")
+    assert url == "https://youtube.com/shorts/vid1"
